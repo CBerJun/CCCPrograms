@@ -1,0 +1,5 @@
+*.exe
+.vscode
+test.c
+test.txt
+_runnerstdout.txt
