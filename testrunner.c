@@ -1,5 +1,9 @@
 /*
  * Run test files of CCC.
+ *
+ * Copyright 2023 CBerJun
+ * Licensed under the Apache License, Version 2.0
+ *
  * Usage:
  *   testrunner <program file> <sample dir>
  * Program file can be a C or C++ source file (with .cpp or .c).
