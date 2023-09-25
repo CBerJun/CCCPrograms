@@ -6,7 +6,8 @@
  *
  * Usage:
  *   testrunner <program file> <sample dir>
- * Program file can be a C or C++ source file (with .cpp or .c).
+ * Program file can be a C, C++ or Python source file
+ * (with .c, .cpp/.cc or .py extensions, respectively).
  * Example:
  *   testrunner ./2023/j1.c path/to/2023_Junior_data/j1
  * This does not work well on PowerShell.
@@ -14,6 +15,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
 
@@ -27,33 +29,29 @@
 // Command line reference: https://cccgrader.com/sample_soln.pdf
 const char CC_CMD_CPP[] = "g++ -o " OUTFILE " -O2 -std=c++17 -static %s";
 const char CC_CMD_C[] = "gcc -o " OUTFILE " -O2 -lm -static %s";
+const char PYTHON[] = "python";
 const size_t CMD_BUF_SIZE = 512 * sizeof(char);
 
-int endswith(char str[], char suffix[]) {
-    /* Return 0 if `str` ends with `suffix`. */
-    size_t len = strlen(str);
-    size_t suffix_len = strlen(suffix);
-    if (len < suffix_len) {
-        return -1;
-    }
-    for (size_t i = 0; i < suffix_len; i++) {
-        if (str[len - suffix_len + i] != suffix[i]) {
-            return -1;
-        }
-    }
-    return 0;
+char* view_extension(const char str[]) {
+    /*
+     * Return the extension of `str`.
+     * Example: view_extension("abc.txt") -> ".txt"
+     * Note that the returned pointer points to the part of the given
+     * `str` so it should not be freed and should not be used when
+     * `str` changes.
+     */
+    return strrchr(str, '.');
 }
 
-int compile(char infile[]) {
-    // Compile
+int compile(const char infile[], const char cmd[]) {
     char *compile_cmd = malloc(CMD_BUF_SIZE);
     snprintf(
         compile_cmd, CMD_BUF_SIZE,
-        endswith(infile, ".cpp") == 0 ? CC_CMD_CPP : CC_CMD_C,
-        infile  /* In file */
+        cmd,
+        infile
     );
 #if DEBUG
-    printf("Compiling: %s\n", compile_cmd);
+    printf("Compiling C file: %s\n", compile_cmd);
 #endif
     int result = system(compile_cmd);
     free(compile_cmd);
@@ -66,7 +64,7 @@ typedef struct samples_t {
     int case_no;
 } samples_t;
 
-int find_samples(char dirname[], samples_t *samples) {
+int find_samples(const char dirname[], samples_t *samples) {
     int result = 1;
     samples->dirname = malloc(strlen(dirname) + 1);
     strcpy(samples->dirname, dirname);
@@ -79,7 +77,7 @@ int find_samples(char dirname[], samples_t *samples) {
     struct dirent *file = NULL;
     samples->case_no = 0;
     while ((file = readdir(dir)) != NULL) {
-        if (endswith(file->d_name, ".in") != 0) {
+        if (strcmp(view_extension(file->d_name), ".in") != 0) {
             // Not a test input file
             continue;
         }
@@ -106,7 +104,7 @@ dir_error:
     return result;
 }
 
-void run_samples(samples_t *samples) {
+void run_samples(const samples_t *samples, const char program[]) {
     char *run_cmd = malloc(CMD_BUF_SIZE);
     char *filename = malloc(FILENAME_MAX);  // without extension
     char *out_filename = malloc(FILENAME_MAX);
@@ -125,7 +123,8 @@ void run_samples(samples_t *samples) {
         strcpy(out_filename, filename);
         strcat(out_filename, ".out");
         run_cmd[0] = '\0';
-        strcat(run_cmd, OUTFILE " < ");
+        strcat(run_cmd, program);
+        strcat(run_cmd, " < ");
         strcat(run_cmd, in_filename);
         strcat(run_cmd, " > ");
         strcat(run_cmd, STDOUTFILE);
@@ -189,19 +188,41 @@ void run_samples(samples_t *samples) {
 void close_samples(samples_t *samples) {
     for (int i = 0; i < samples->case_no; i++) {
         free(samples->filenames[i]);
+        samples->filenames[i] = NULL;
     }
     free(samples->dirname);
+    samples->dirname = NULL;
 }
 
 int main(int argc, char *argv[]) {
     int result = 1;
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <program file> <sample dir>\n", argv[0]);
-        goto cli_error;
+        goto before_samples;
     }
-    if (compile(argv[1]) != 0) {
-        fprintf(stderr, "Failed to compile %s\n", argv[1]);
-        goto compile_error;
+    char *extension = view_extension(argv[1]);
+    if (extension == NULL) {
+        fprintf(stderr, "Failed to get extension of %s\n", argv[1]);
+        goto before_samples;
+    }
+    const int is_python = (strcmp(extension, ".py") == 0);
+    if (!is_python) {
+        const char *cmd = NULL;
+        if (strcmp(extension, ".c") == 0) {
+            cmd = CC_CMD_C;
+        }
+        else if (strcmp(extension, ".cpp") == 0
+                 || strcmp(extension, ".cc") == 0) {
+            cmd = CC_CMD_CPP;
+        }
+        else {
+            fprintf(stderr, "Failed to recognize extension of %s\n", argv[1]);
+            goto before_samples;
+        }
+        if (compile(argv[1], cmd) != 0) {
+            fprintf(stderr, "Failed to compile %s\n", argv[1]);
+            goto before_samples;
+        }
     }
     // Find samples
     samples_t samples;
@@ -214,11 +235,21 @@ int main(int argc, char *argv[]) {
         printf("  %s\n", samples.filenames[i]);
     }
 #endif  /* DEBUG */
-    run_samples(&samples);
+    // Run samples
+    char *program = malloc(CMD_BUF_SIZE);
+    if (is_python) {
+        strcpy(program, PYTHON);
+        strcat(program, " ");
+        strcat(program, argv[1]);
+    }
+    else {
+        strcpy(program, OUTFILE);
+    }
+    run_samples(&samples, program);
+    free(program);
     result = 0;
 samples_error:
     close_samples(&samples);
-compile_error:
-cli_error:
+before_samples:
     return result;
 }
