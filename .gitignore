@@ -1,5 +1,13 @@
+# Output
 *.exe
+*.class
+
+# IDE
 .vscode
+
+# Test files
 test.c
 test.txt
+
+# Testrunner
 _runnerstdout.txt
