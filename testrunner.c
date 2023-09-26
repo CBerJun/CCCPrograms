@@ -6,8 +6,8 @@
  *
  * Usage:
  *   testrunner <program file> <sample dir>
- * Program file can be a C, C++ or Python source file
- * (with .c, .cpp/.cc or .py extensions, respectively).
+ * Program file can be a C, C++, Python or Java source file
+ * (with .c, .cpp/.cc, .py or .java extensions, respectively).
  * Example:
  *   testrunner ./2023/j1.c path/to/2023_Junior_data/j1
  * This does not work well on PowerShell.
@@ -20,16 +20,19 @@
 #include <sys/stat.h>
 
 #define DEBUG 0
-#define OUTFILE "_runnerout"
+#define OUT_PROGRAM "_runnerout"
+#define OUT_JAVADIR "_runnerjavadir"
 #define STDOUTFILE "_runnerstdout.txt"
 #define MAX_TESTCASES 100
 #define FILE_BUF 512
 #define INPUT_SHOW_MAX 4  // 4 * FILE_BUF
 
 // Command line reference: https://cccgrader.com/sample_soln.pdf
-const char CC_CMD_CPP[] = "g++ -o " OUTFILE " -O2 -std=c++17 -static %s";
-const char CC_CMD_C[] = "gcc -o " OUTFILE " -O2 -lm -static %s";
+const char CC_CMD_CPP[] = "g++ -o " OUT_PROGRAM " -O2 -std=c++17 -static %s";
+const char CC_CMD_C[] = "gcc -o " OUT_PROGRAM " -O2 -lm -static %s";
+const char CC_CMD_JAVA[] = "javac -d " OUT_JAVADIR " %s";
 const char PYTHON[] = "python";
+const char JAVA[] = "java";
 const size_t CMD_BUF_SIZE = 512 * sizeof(char);
 
 char* view_extension(const char str[]) {
@@ -51,7 +54,7 @@ int compile(const char infile[], const char cmd[]) {
         infile
     );
 #if DEBUG
-    printf("Compiling C file: %s\n", compile_cmd);
+    printf("Compiling: %s\n", compile_cmd);
 #endif
     int result = system(compile_cmd);
     free(compile_cmd);
@@ -206,6 +209,7 @@ int main(int argc, char *argv[]) {
         goto before_samples;
     }
     const int is_python = (strcmp(extension, ".py") == 0);
+    const int is_java = (strcmp(extension, ".java") == 0);
     if (!is_python) {
         const char *cmd = NULL;
         if (strcmp(extension, ".c") == 0) {
@@ -214,6 +218,9 @@ int main(int argc, char *argv[]) {
         else if (strcmp(extension, ".cpp") == 0
                  || strcmp(extension, ".cc") == 0) {
             cmd = CC_CMD_CPP;
+        }
+        else if (is_java) {
+            cmd = CC_CMD_JAVA;
         }
         else {
             fprintf(stderr, "Failed to recognize extension of %s\n", argv[1]);
@@ -242,8 +249,29 @@ int main(int argc, char *argv[]) {
         strcat(program, " ");
         strcat(program, argv[1]);
     }
+    else if (is_java) {
+        strcpy(program, JAVA);
+        strcat(program, " -cp ");
+        strcat(program, OUT_JAVADIR " ");
+        char *filename = strrchr(argv[1], '/');
+        if (filename == NULL) {
+            filename = strrchr(argv[1], '\\');
+        }
+        if (filename == NULL) {
+            filename = argv[1];
+        }
+        else {
+            filename++;  // Skip the '/'
+        }
+        strncat(
+            program, filename,
+            // Remove .java extension
+            strlen(filename) - strlen(extension)
+        );
+    }
     else {
-        strcpy(program, OUTFILE);
+        // C or C++
+        strcpy(program, OUT_PROGRAM);
     }
     run_samples(&samples, program);
     free(program);
