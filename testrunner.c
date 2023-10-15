@@ -80,7 +80,8 @@ int find_samples(const char dirname[], samples_t *samples) {
     struct dirent *file = NULL;
     samples->case_no = 0;
     while ((file = readdir(dir)) != NULL) {
-        if (strcmp(view_extension(file->d_name), ".in") != 0) {
+        char *extension = view_extension(file->d_name);
+        if (extension == NULL || strcmp(extension, ".in") != 0) {
             // Not a test input file
             continue;
         }
