@@ -1,4 +1,25 @@
-/* j5.3-1, j5.3-3 didn't pass. I don't know why. */
+/*
+ * j5.3-1, j5.3-3 didn't pass. I don't know why.
+ *
+ * EDIT 2024.02.11
+ * I spent 18 minutes reviewing my code and found the mistake.
+ * I constructed a counterexample:
+ *      8
+ *      2 6 3  # Notice it's 2 6 3 not 2 3 6!
+ *      2 3 5
+ *      2 2 4
+ *      1 8
+ *      0
+ *      1 7
+ *      1 2
+ *      1 5
+ * The correct answer is "Y 4" while the program gives "Y 5".
+ * Using 2 3 6 instead of 2 6 3, it gives the correct answer.
+ * The reason is because of caching--our program ignores next pages
+ * that have been `visited`, and calculates the result based on the
+ * `visited` set given in this `visit`, but next time it may change,
+ * making the answer in our cache wrong.
+ */
 
 #include <iostream>
 #include <vector>
